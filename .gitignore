@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Google OAuth / secrets - never commit
+credentials.json
+tokens.json
+client_secret*.json
+
+# Runtime business data
+business_todos.txt
