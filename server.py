@@ -158,6 +158,136 @@ def create_followup_task(
 
 
 # ============================================================
+# GMAIL
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CREDENTIALS_FILE = os.path.join(
+    BASE_DIR,
+    "credentials.json"
+)
+
+TOKEN_FILE = os.path.join(
+    BASE_DIR,
+    "tokens.json"
+)
+
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send"
+]
+
+
+def get_gmail_service():
+
+    creds = None
+
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(
+            TOKEN_FILE,
+            SCOPES
+        )
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+
+    if not creds or not creds.valid:
+
+        if os.path.exists(CREDENTIALS_FILE):
+
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CREDENTIALS_FILE,
+                SCOPES
+            )
+
+            creds = flow.run_local_server(port=0)
+
+        with open(TOKEN_FILE, "w") as token:
+            token.write(creds.to_json())
+
+    return build(
+        "gmail",
+        "v1",
+        credentials=creds
+    )
+
+
+@mcp.tool()
+def send_email(
+    lead_name: str,
+    subject: str,
+    body: str
+) -> str:
+    """Send a business email to the lead."""
+
+    lead = leads.get(lead_name)
+
+    if not lead:
+        return f"Lead not found: {lead_name}"
+
+    service = get_gmail_service()
+
+    message = EmailMessage()
+
+    message["To"] = lead["email"]
+    message["Subject"] = subject
+
+    message.set_content(body)
+
+    encoded = base64.urlsafe_b64encode(
+        message.as_bytes()
+    ).decode()
+
+    sent = service.users().messages().send(
+        userId="me",
+        body={
+            "raw": encoded
+        }
+    ).execute()
+
+    return f"Email sent. Message ID: {sent['id']}"
+
+
+# ============================================================
+# TODO
+# ============================================================
+
+TODO_FILE = os.path.join(
+    BASE_DIR,
+    "business_todos.txt"
+)
+
+
+@mcp.tool()
+def add_todo(
+    company: str,
+    meeting_date: str,
+    task: str
+) -> str:
+    """Record an assigned business meeting or follow-up task."""
+
+    timestamp = datetime.now().strftime(
+        "%Y-%m-%d %H:%M"
+    )
+
+    record = (
+        f"[{timestamp}] OPEN | "
+        f"Company: {company} | "
+        f"Meeting: {meeting_date} | "
+        f"Task: {task}\n"
+    )
+
+    with open(
+        TODO_FILE,
+        "a",
+        encoding="utf-8"
+    ) as file:
+        file.write(record)
+
+    return f"Task recorded for {company}."
+
+
+# ============================================================
 # START MCP SERVER
 # ============================================================
 
